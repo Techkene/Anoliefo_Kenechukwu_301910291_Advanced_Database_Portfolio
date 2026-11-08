@@ -1,4 +1,4 @@
-# Portfolio 1 — Database Design and Modelling
+# Kenechukwu Anoliefo 301910291 Portfolio 1 — Database Design and Modelling
 
 ## 1. Case study: AquaSense+
 
