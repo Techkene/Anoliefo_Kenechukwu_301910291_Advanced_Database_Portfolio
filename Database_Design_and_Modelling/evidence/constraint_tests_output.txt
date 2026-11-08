@@ -1,0 +1,48 @@
+SET
+BEGIN
+--- T1  CHECK: feed stock can never go negative ---
+SAVEPOINT
+psql:03_constraint_tests.sql:12: ERROR:  new row for relation "feed_inventory" violates check constraint "feed_inventory_qty_kg_check"
+DETAIL:  Failing row contains (1, 4, -999465.61, 2026-11-08 12:42:54.667005+01).
+ROLLBACK
+--- T2  PARTIAL UNIQUE INDEX: only one ACTIVE batch per pond ---
+SAVEPOINT
+psql:03_constraint_tests.sql:18: ERROR:  duplicate key value violates unique constraint "uq_one_active_batch_per_unit"
+DETAIL:  Key (unit_id)=(2) already exists.
+ROLLBACK
+--- T3  FOREIGN KEY: feeding log for a batch that does not exist ---
+SAVEPOINT
+psql:03_constraint_tests.sql:23: ERROR:  insert or update on table "feeding_log" violates foreign key constraint "feeding_log_batch_id_fkey"
+DETAIL:  Key (batch_id)=(999999) is not present in table "stock_batch".
+ROLLBACK
+--- T4  CHECK (regex): phone must be a valid +234 number ---
+SAVEPOINT
+psql:03_constraint_tests.sql:28: ERROR:  new row for relation "app_user" violates check constraint "app_user_phone_check"
+DETAIL:  Failing row contains (606, Test User, 08031234567, farmer, null, en, 2026-11-08 12:44:09.096136+01).
+ROLLBACK
+--- T5  CHECK: pH must be between 0 and 14 ---
+SAVEPOINT
+psql:03_constraint_tests.sql:33: ERROR:  new row for relation "water_quality_reading" violates check constraint "water_quality_reading_ph_check"
+DETAIL:  Failing row contains (1033612, 1, 2026-11-08 12:44:09.096136+01, 15.20, null, null, null, manual).
+ROLLBACK
+--- T6  UNIQUE: duplicate unit code on the same farm ---
+SAVEPOINT
+psql:03_constraint_tests.sql:39: ERROR:  duplicate key value violates unique constraint "culture_unit_farm_id_unit_code_key"
+DETAIL:  Key (farm_id, unit_code)=(1, TANK-01) already exists.
+ROLLBACK
+--- T7  CHECK: an active batch cannot have a closed_on date ---
+SAVEPOINT
+psql:03_constraint_tests.sql:44: ERROR:  new row for relation "stock_batch" violates check constraint "stock_batch_check1"
+DETAIL:  Failing row contains (2717, 2, 1, 2026-06-26, 1168, 8.42, 48.46, CEFAS Hatchery, active, 2026-11-08).
+ROLLBACK
+--- T8  VALID insert succeeds (control case) ---
+SAVEPOINT
+ reading_id |  ph  | dissolved_oxygen_mgl 
+------------+------+----------------------
+    1033613 | 7.10 |                 5.40
+(1 row)
+
+INSERT 0 1
+ROLLBACK
+ROLLBACK
+All constraint tests finished — database unchanged.

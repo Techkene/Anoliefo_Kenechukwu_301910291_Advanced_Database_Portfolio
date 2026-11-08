@@ -1,0 +1,40 @@
+SET
+ setseed 
+---------
+ 
+(1 row)
+
+INSERT 0 16
+INSERT 0 4
+INSERT 0 12
+INSERT 0 15
+SELECT 1
+INSERT 0 605
+SELECT 21
+INSERT 0 180
+INSERT 0 360
+INSERT 0 905
+INSERT 0 3764
+INSERT 0 505787
+INSERT 0 42331
+INSERT 0 36239
+INSERT 0 1033611
+INSERT 0 3019
+INSERT 0 7549
+INSERT 0 11880
+INSERT 0 540
+INSERT 0 17822
+ANALYZE
+           t           |  count  
+-----------------------+---------
+ farm                  |     180
+ culture_unit          |     905
+ harvest               |    3019
+ stock_batch           |    3764
+ sale                  |    7549
+ expense               |   17822
+ mortality_log         |   42331
+ feeding_log           |  505787
+ water_quality_reading | 1033611
+(9 rows)
+

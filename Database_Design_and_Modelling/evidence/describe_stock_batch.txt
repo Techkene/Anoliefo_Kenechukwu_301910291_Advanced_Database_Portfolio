@@ -1,0 +1,33 @@
+                                                 Table "aqua.stock_batch"
+        Column        |          Type          | Collation | Nullable |                      Default                       
+----------------------+------------------------+-----------+----------+----------------------------------------------------
+ batch_id             | integer                |           | not null | nextval('aqua.stock_batch_batch_id_seq'::regclass)
+ unit_id              | integer                |           | not null | 
+ species_id           | smallint               |           | not null | 
+ stocked_on           | date                   |           | not null | 
+ initial_count        | integer                |           | not null | 
+ initial_avg_weight_g | numeric(7,2)           |           | not null | 
+ fingerling_unit_cost | numeric(8,2)           |           | not null | 
+ hatchery_source      | character varying(120) |           |          | 
+ status               | character varying(10)  |           | not null | 'active'::character varying
+ closed_on            | date                   |           |          | 
+Indexes:
+    "stock_batch_pkey" PRIMARY KEY, btree (batch_id)
+    "uq_one_active_batch_per_unit" UNIQUE, btree (unit_id) WHERE status::text = 'active'::text
+Check constraints:
+    "stock_batch_check" CHECK (closed_on IS NULL OR closed_on >= stocked_on)
+    "stock_batch_check1" CHECK ((status::text = 'active'::text) = (closed_on IS NULL))
+    "stock_batch_fingerling_unit_cost_check" CHECK (fingerling_unit_cost >= 0::numeric)
+    "stock_batch_initial_avg_weight_g_check" CHECK (initial_avg_weight_g > 0::numeric)
+    "stock_batch_initial_count_check" CHECK (initial_count > 0)
+    "stock_batch_status_check" CHECK (status::text = ANY (ARRAY['active'::character varying, 'harvested'::character varying, 'closed'::character varying]::text[]))
+Foreign-key constraints:
+    "stock_batch_species_id_fkey" FOREIGN KEY (species_id) REFERENCES aqua.species(species_id)
+    "stock_batch_unit_id_fkey" FOREIGN KEY (unit_id) REFERENCES aqua.culture_unit(unit_id)
+Referenced by:
+    TABLE "aqua.expense" CONSTRAINT "expense_batch_id_fkey" FOREIGN KEY (batch_id) REFERENCES aqua.stock_batch(batch_id)
+    TABLE "aqua.feeding_log" CONSTRAINT "feeding_log_batch_id_fkey" FOREIGN KEY (batch_id) REFERENCES aqua.stock_batch(batch_id) ON DELETE CASCADE
+    TABLE "aqua.growth_sample" CONSTRAINT "growth_sample_batch_id_fkey" FOREIGN KEY (batch_id) REFERENCES aqua.stock_batch(batch_id) ON DELETE CASCADE
+    TABLE "aqua.harvest" CONSTRAINT "harvest_batch_id_fkey" FOREIGN KEY (batch_id) REFERENCES aqua.stock_batch(batch_id)
+    TABLE "aqua.mortality_log" CONSTRAINT "mortality_log_batch_id_fkey" FOREIGN KEY (batch_id) REFERENCES aqua.stock_batch(batch_id) ON DELETE CASCADE
+

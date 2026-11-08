@@ -1,0 +1,22 @@
+      table_name       |  size   
+-----------------------+---------
+ water_quality_reading | 113 MB
+ feeding_log           | 44 MB
+ growth_sample         | 3752 kB
+ mortality_log         | 3656 kB
+ expense               | 1544 kB
+ feed_purchase         | 1008 kB
+ sale                  | 816 kB
+ stock_batch           | 544 kB
+ harvest               | 272 kB
+ culture_unit          | 176 kB
+ app_user              | 152 kB
+ feed_inventory        | 96 kB
+ farm                  | 80 kB
+ farm_staff            | 64 kB
+ species               | 56 kB
+ feed_product          | 40 kB
+ cooperative           | 40 kB
+ state                 | 40 kB
+(18 rows)
+
