@@ -1,0 +1,16 @@
+-- Q7: Sargability: same question rewritten as a range (GOOD form — index-friendly)
+-- phase: after
+
+SELECT count(*), ROUND(AVG(dissolved_oxygen_mgl), 2) AS avg_do
+FROM aqua.water_quality_reading
+WHERE unit_id = 316
+  AND recorded_at >= TIMESTAMPTZ '2026-10-01 00:00+01'
+  AND recorded_at <  TIMESTAMPTZ '2026-10-02 00:00+01'
+
+Aggregate  (cost=12.01..12.02 rows=1 width=40) (actual time=0.034..0.034 rows=1 loops=1)
+  Buffers: shared hit=4
+  ->  Index Scan using ix_wqr_unit_time on water_quality_reading  (cost=0.42..11.99 rows=3 width=6) (actual time=0.016..0.021 rows=12 loops=1)
+        Index Cond: ((unit_id = 316) AND (recorded_at >= '2026-10-01 00:00:00+01'::timestamp with time zone) AND (recorded_at < '2026-10-02 00:00:00+01'::timestamp with time zone))
+        Buffers: shared hit=4
+Planning Time: 0.151 ms
+Execution Time: 0.063 ms

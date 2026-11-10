@@ -1,0 +1,25 @@
+-- Q1: Pond dashboard: last 7 days of water readings for one pond
+-- phase: before
+
+SELECT recorded_at, ph, dissolved_oxygen_mgl, temperature_c, ammonia_mgl
+FROM aqua.water_quality_reading
+WHERE unit_id = 316
+  AND recorded_at >= TIMESTAMPTZ '2026-11-03 23:59+01' - INTERVAL '7 days'
+ORDER BY recorded_at DESC
+
+Gather Merge  (cost=20137.73..20146.37 rows=74 width=31) (actual time=291.202..299.727 rows=84 loops=1)
+  Workers Planned: 2
+  Workers Launched: 2
+  Buffers: shared hit=842 read=10832
+  ->  Sort  (cost=19137.71..19137.80 rows=37 width=31) (actual time=188.252..188.255 rows=28 loops=3)
+        Sort Key: recorded_at DESC
+        Sort Method: quicksort  Memory: 30kB
+        Buffers: shared hit=842 read=10832
+        Worker 0:  Sort Method: quicksort  Memory: 25kB
+        Worker 1:  Sort Method: quicksort  Memory: 25kB
+        ->  Parallel Seq Scan on water_quality_reading  (cost=0.00..19136.75 rows=37 width=31) (actual time=153.466..188.059 rows=28 loops=3)
+              Filter: ((unit_id = 316) AND (recorded_at >= ('2026-11-03 23:59:00+01'::timestamp with time zone - '7 days'::interval)))
+              Rows Removed by Filter: 344509
+              Buffers: shared hit=768 read=10832
+Planning Time: 0.213 ms
+Execution Time: 299.775 ms

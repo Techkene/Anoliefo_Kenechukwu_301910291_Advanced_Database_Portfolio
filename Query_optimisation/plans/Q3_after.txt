@@ -1,0 +1,42 @@
+-- Q3: Alert feed: dangerously low oxygen (< 2.5 mg/L) in Lagos in the last 24 hours
+-- phase: after
+
+SELECT f.farm_name, cu.unit_code, w.recorded_at, w.dissolved_oxygen_mgl
+FROM aqua.water_quality_reading w
+JOIN aqua.culture_unit cu ON cu.unit_id = w.unit_id
+JOIN aqua.farm f          ON f.farm_id  = cu.farm_id
+WHERE w.dissolved_oxygen_mgl < 2.5
+  AND w.recorded_at >= TIMESTAMPTZ '2026-11-03 23:59+01' - INTERVAL '24 hours'
+  AND f.state_code = 'LA'
+ORDER BY w.dissolved_oxygen_mgl
+
+Sort  (cost=37.32..37.36 rows=13 width=39) (actual time=0.374..0.377 rows=16 loops=1)
+  Sort Key: w.dissolved_oxygen_mgl
+  Sort Method: quicksort  Memory: 26kB
+  Buffers: shared hit=15
+  ->  Hash Join  (cost=27.06..37.08 rows=13 width=39) (actual time=0.334..0.361 rows=16 loops=1)
+        Hash Cond: (w.unit_id = cu.unit_id)
+        Buffers: shared hit=15
+        ->  Index Only Scan using ix_wqr_low_oxygen on water_quality_reading w  (cost=0.29..9.85 rows=89 width=18) (actual time=0.012..0.032 rows=114 loops=1)
+              Index Cond: (recorded_at >= ('2026-11-03 23:59:00+01'::timestamp with time zone - '24:00:00'::interval))
+              Heap Fetches: 0
+              Buffers: shared hit=4
+        ->  Hash  (cost=25.07..25.07 rows=136 width=29) (actual time=0.301..0.303 rows=155 loops=1)
+              Buckets: 1024  Batches: 1  Memory Usage: 18kB
+              Buffers: shared hit=11
+              ->  Hash Join  (cost=5.59..25.07 rows=136 width=29) (actual time=0.072..0.267 rows=155 loops=1)
+                    Hash Cond: (cu.farm_id = f.farm_id)
+                    Buffers: shared hit=11
+                    ->  Seq Scan on culture_unit cu  (cost=0.00..17.05 rows=905 width=16) (actual time=0.012..0.086 rows=905 loops=1)
+                          Buffers: shared hit=8
+                    ->  Hash  (cost=5.25..5.25 rows=27 width=21) (actual time=0.046..0.047 rows=27 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                          Buffers: shared hit=3
+                          ->  Seq Scan on farm f  (cost=0.00..5.25 rows=27 width=21) (actual time=0.009..0.037 rows=27 loops=1)
+                                Filter: (state_code = 'LA'::bpchar)
+                                Rows Removed by Filter: 153
+                                Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=24
+Planning Time: 0.463 ms
+Execution Time: 0.410 ms

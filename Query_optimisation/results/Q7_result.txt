@@ -1,0 +1,5 @@
+-- Q7: Sargability: same question rewritten as a range (GOOD form — index-friendly)
+-- 1 row(s); first 15 shown
+
+count | avg_do
+12 | 5.13

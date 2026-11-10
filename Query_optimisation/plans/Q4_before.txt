@@ -1,0 +1,55 @@
+-- Q4: Batch report: feed used, harvest weight and FCR for every closed batch on one farm
+-- phase: before
+
+SELECT b.batch_id, cu.unit_code, b.stocked_on, b.closed_on,
+       fl.feed_kg,
+       h.harvest_kg,
+       ROUND(fl.feed_kg / NULLIF(h.harvest_kg - b.initial_count * b.initial_avg_weight_g / 1000, 0), 2) AS fcr
+FROM aqua.stock_batch b
+JOIN aqua.culture_unit cu ON cu.unit_id = b.unit_id
+JOIN LATERAL (SELECT SUM(qty_kg) AS feed_kg   FROM aqua.feeding_log fl WHERE fl.batch_id = b.batch_id) fl ON TRUE
+JOIN LATERAL (SELECT SUM(total_weight_kg) AS harvest_kg FROM aqua.harvest h WHERE h.batch_id = b.batch_id) h ON TRUE
+WHERE cu.farm_id = 64 AND b.status = 'harvested'
+ORDER BY b.stocked_on
+
+Sort  (cost=286193.56..286193.63 rows=27 width=116) (actual time=1844.760..1844.764 rows=26 loops=1)
+  Sort Key: b.stocked_on
+  Sort Method: quicksort  Memory: 26kB
+  Buffers: shared hit=6394 read=103766
+  ->  Nested Loop  (cost=10608.37..286192.92 rows=27 width=116) (actual time=77.754..1844.686 rows=26 loops=1)
+        Buffers: shared hit=6394 read=103766
+        ->  Nested Loop  (cost=10550.63..284632.86 rows=27 width=62) (actual time=77.289..1836.238 rows=26 loops=1)
+              Buffers: shared hit=5874 read=103766
+              ->  Hash Join  (cost=12.95..114.96 rows=27 width=30) (actual time=0.136..1.132 rows=26 loops=1)
+                    Hash Cond: (b.unit_id = cu.unit_id)
+                    Buffers: shared hit=50
+                    ->  Seq Scan on stock_batch b  (cost=0.00..94.05 rows=3019 width=26) (actual time=0.011..0.768 rows=3019 loops=1)
+                          Filter: ((status)::text = 'harvested'::text)
+                          Rows Removed by Filter: 745
+                          Buffers: shared hit=47
+                    ->  Hash  (cost=12.85..12.85 rows=8 width=12) (actual time=0.018..0.019 rows=8 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                          Buffers: shared hit=3
+                          ->  Bitmap Heap Scan on culture_unit cu  (cost=4.34..12.85 rows=8 width=12) (actual time=0.011..0.013 rows=8 loops=1)
+                                Recheck Cond: (farm_id = 64)
+                                Heap Blocks: exact=1
+                                Buffers: shared hit=3
+                                ->  Bitmap Index Scan on culture_unit_farm_id_unit_code_key  (cost=0.00..4.33 rows=8 width=0) (actual time=0.007..0.007 rows=8 loops=1)
+                                      Index Cond: (farm_id = 64)
+                                      Buffers: shared hit=2
+              ->  Aggregate  (cost=10537.68..10537.69 rows=1 width=32) (actual time=70.578..70.578 rows=1 loops=26)
+                    Buffers: shared hit=5824 read=103766
+                    ->  Seq Scan on feeding_log fl  (cost=0.00..10537.34 rows=136 width=6) (actual time=27.873..70.539 rows=145 loops=26)
+                          Filter: (batch_id = b.batch_id)
+                          Rows Removed by Filter: 505642
+                          Buffers: shared hit=5824 read=103766
+        ->  Aggregate  (cost=57.74..57.75 rows=1 width=32) (actual time=0.316..0.316 rows=1 loops=26)
+              Buffers: shared hit=520
+              ->  Seq Scan on harvest h  (cost=0.00..57.74 rows=1 width=7) (actual time=0.134..0.296 rows=1 loops=26)
+                    Filter: (batch_id = b.batch_id)
+                    Rows Removed by Filter: 3018
+                    Buffers: shared hit=520
+Planning:
+  Buffers: shared hit=6
+Planning Time: 0.442 ms
+Execution Time: 1844.832 ms

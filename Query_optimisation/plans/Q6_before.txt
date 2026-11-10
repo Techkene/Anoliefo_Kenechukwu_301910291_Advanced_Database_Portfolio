@@ -1,0 +1,22 @@
+-- Q6: Sargability: all readings on 1 Oct 2026 for one pond (BAD form — function on the column)
+-- phase: before
+
+SELECT count(*), ROUND(AVG(dissolved_oxygen_mgl), 2) AS avg_do
+FROM aqua.water_quality_reading
+WHERE unit_id = 316
+  AND date(recorded_at AT TIME ZONE 'Africa/Lagos') = DATE '2026-10-01'
+
+Finalize Aggregate  (cost=21213.69..21213.71 rows=1 width=40) (actual time=184.916..191.469 rows=1 loops=1)
+  Buffers: shared hit=2560 read=9040
+  ->  Gather  (cost=21213.47..21213.68 rows=2 width=40) (actual time=184.741..191.454 rows=3 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=2560 read=9040
+        ->  Partial Aggregate  (cost=20213.47..20213.48 rows=1 width=40) (actual time=118.159..118.160 rows=1 loops=3)
+              Buffers: shared hit=2560 read=9040
+              ->  Parallel Seq Scan on water_quality_reading  (cost=0.00..20213.43 rows=8 width=6) (actual time=93.321..118.146 rows=4 loops=3)
+                    Filter: ((unit_id = 316) AND (date((recorded_at AT TIME ZONE 'Africa/Lagos'::text)) = '2026-10-01'::date))
+                    Rows Removed by Filter: 344533
+                    Buffers: shared hit=2560 read=9040
+Planning Time: 0.109 ms
+Execution Time: 191.508 ms

@@ -1,0 +1,30 @@
+-- Q2: Farm overview: latest reading for every pond on a farm
+-- phase: after
+
+SELECT cu.unit_code, r.recorded_at, r.dissolved_oxygen_mgl, r.ph, r.temperature_c
+FROM aqua.culture_unit cu
+CROSS JOIN LATERAL (
+    SELECT recorded_at, dissolved_oxygen_mgl, ph, temperature_c
+    FROM aqua.water_quality_reading w
+    WHERE w.unit_id = cu.unit_id
+    ORDER BY recorded_at DESC
+    LIMIT 1) r
+WHERE cu.farm_id = 64
+ORDER BY cu.unit_code
+
+Sort  (cost=25.71..25.73 rows=8 width=34) (actual time=0.093..0.095 rows=8 loops=1)
+  Sort Key: cu.unit_code
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=35
+  ->  Nested Loop  (cost=0.70..25.59 rows=8 width=34) (actual time=0.026..0.067 rows=8 loops=1)
+        Buffers: shared hit=35
+        ->  Index Scan using ix_unit_farm on culture_unit cu  (cost=0.28..8.41 rows=8 width=12) (actual time=0.011..0.013 rows=8 loops=1)
+              Index Cond: (farm_id = 64)
+              Buffers: shared hit=3
+        ->  Limit  (cost=0.42..2.14 rows=1 width=26) (actual time=0.006..0.006 rows=1 loops=8)
+              Buffers: shared hit=32
+              ->  Index Scan using ix_wqr_unit_time on water_quality_reading w  (cost=0.42..1955.16 rows=1142 width=26) (actual time=0.006..0.006 rows=1 loops=8)
+                    Index Cond: (unit_id = cu.unit_id)
+                    Buffers: shared hit=32
+Planning Time: 0.144 ms
+Execution Time: 0.116 ms

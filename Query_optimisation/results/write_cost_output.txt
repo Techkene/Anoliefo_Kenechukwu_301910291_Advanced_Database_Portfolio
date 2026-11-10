@@ -1,0 +1,21 @@
+Timing is on.
+SET
+Time: 0.359 ms
+=== WITH ix_wqr_unit_time + ix_wqr_low_oxygen ===
+BEGIN
+Time: 0.308 ms
+INSERT 0 100000
+Time: 2528.081 ms (00:02.528)
+ROLLBACK
+Time: 0.332 ms
+=== WITHOUT the two indexes (dropped inside the transaction) ===
+BEGIN
+Time: 0.119 ms
+DROP INDEX
+Time: 1.535 ms
+DROP INDEX
+Time: 0.904 ms
+INSERT 0 100000
+Time: 2046.922 ms (00:02.047)
+ROLLBACK
+Time: 0.510 ms

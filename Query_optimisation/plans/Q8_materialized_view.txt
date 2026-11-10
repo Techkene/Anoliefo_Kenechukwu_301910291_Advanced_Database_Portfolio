@@ -1,0 +1,14 @@
+SELECT * FROM aqua.mv_state_monthly_sales WHERE month >= DATE '2026-01-01' ORDER BY state_code, month
+
+Sort  (cost=8.54..8.77 rows=93 width=80) (actual time=0.078..0.084 rows=136 loops=1)
+  Sort Key: state_code, month
+  Sort Method: quicksort  Memory: 31kB
+  Buffers: shared hit=2
+  ->  Seq Scan on mv_state_monthly_sales  (cost=0.00..5.50 rows=93 width=80) (actual time=0.014..0.043 rows=136 loops=1)
+        Filter: (month >= '2026-01-01'::date)
+        Rows Removed by Filter: 144
+        Buffers: shared hit=2
+Planning Time: 0.058 ms
+Execution Time: 0.102 ms
+
+-- REFRESH CONCURRENTLY took 100.6 ms

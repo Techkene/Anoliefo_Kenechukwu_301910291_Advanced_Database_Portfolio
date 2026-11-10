@@ -1,0 +1,23 @@
+-- Q7: Sargability: same question rewritten as a range (GOOD form — index-friendly)
+-- phase: before
+
+SELECT count(*), ROUND(AVG(dissolved_oxygen_mgl), 2) AS avg_do
+FROM aqua.water_quality_reading
+WHERE unit_id = 316
+  AND recorded_at >= TIMESTAMPTZ '2026-10-01 00:00+01'
+  AND recorded_at <  TIMESTAMPTZ '2026-10-02 00:00+01'
+
+Finalize Aggregate  (cost=20137.01..20137.02 rows=1 width=40) (actual time=252.537..267.714 rows=1 loops=1)
+  Buffers: shared hit=3328 read=8272
+  ->  Gather  (cost=20136.78..20136.99 rows=2 width=40) (actual time=252.327..267.692 rows=3 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=3328 read=8272
+        ->  Partial Aggregate  (cost=19136.78..19136.79 rows=1 width=40) (actual time=165.788..165.789 rows=1 loops=3)
+              Buffers: shared hit=3328 read=8272
+              ->  Parallel Seq Scan on water_quality_reading  (cost=0.00..19136.75 rows=7 width=6) (actual time=131.121..165.774 rows=4 loops=3)
+                    Filter: ((recorded_at >= '2026-10-01 00:00:00+01'::timestamp with time zone) AND (recorded_at < '2026-10-02 00:00:00+01'::timestamp with time zone) AND (unit_id = 316))
+                    Rows Removed by Filter: 344533
+                    Buffers: shared hit=3328 read=8272
+Planning Time: 0.184 ms
+Execution Time: 267.781 ms

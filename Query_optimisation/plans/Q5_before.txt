@@ -1,0 +1,64 @@
+-- Q5: Mortality spike detection: days where deaths > 3x the batch's 7-day average (one farm)
+-- phase: before
+
+WITH daily AS (
+    SELECT m.batch_id, m.recorded_on, SUM(m.dead_count) AS dead
+    FROM aqua.mortality_log m
+    JOIN aqua.stock_batch b ON b.batch_id = m.batch_id
+    JOIN aqua.culture_unit cu ON cu.unit_id = b.unit_id
+    WHERE cu.farm_id = 64
+    GROUP BY m.batch_id, m.recorded_on
+), windowed AS (
+    SELECT *, AVG(dead) OVER (PARTITION BY batch_id ORDER BY recorded_on
+                              ROWS BETWEEN 7 PRECEDING AND 1 PRECEDING) AS avg_prev7
+    FROM daily
+)
+SELECT batch_id, recorded_on, dead, ROUND(avg_prev7, 1) AS avg_prev7
+FROM windowed
+WHERE avg_prev7 IS NOT NULL AND dead > 3 * avg_prev7
+ORDER BY recorded_on DESC
+
+Sort  (cost=1070.86..1071.17 rows=124 width=48) (actual time=8.601..8.605 rows=11 loops=1)
+  Sort Key: windowed.recorded_on DESC
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=386
+  ->  Subquery Scan on windowed  (cost=1045.67..1066.55 rows=124 width=48) (actual time=7.981..8.597 rows=11 loops=1)
+        Filter: ((windowed.avg_prev7 IS NOT NULL) AND ((windowed.dead)::numeric > ('3'::numeric * windowed.avg_prev7)))
+        Rows Removed by Filter: 357
+        Buffers: shared hit=386
+        ->  WindowAgg  (cost=1045.67..1059.69 rows=374 width=48) (actual time=7.947..8.489 rows=368 loops=1)
+              Buffers: shared hit=386
+              ->  GroupAggregate  (cost=1045.67..1053.15 rows=374 width=16) (actual time=7.937..8.089 rows=368 loops=1)
+                    Group Key: m.batch_id, m.recorded_on
+                    Buffers: shared hit=386
+                    ->  Sort  (cost=1045.67..1046.60 rows=374 width=12) (actual time=7.931..7.951 rows=368 loops=1)
+                          Sort Key: m.batch_id, m.recorded_on
+                          Sort Method: quicksort  Memory: 39kB
+                          Buffers: shared hit=386
+                          ->  Hash Join  (cost=107.93..1029.69 rows=374 width=12) (actual time=1.535..7.867 rows=368 loops=1)
+                                Hash Cond: (m.batch_id = b.batch_id)
+                                Buffers: shared hit=386
+                                ->  Seq Scan on mortality_log m  (cost=0.00..759.31 rows=42331 width=12) (actual time=0.008..2.784 rows=42331 loops=1)
+                                      Buffers: shared hit=336
+                                ->  Hash  (cost=107.51..107.51 rows=33 width=4) (actual time=0.782..0.784 rows=33 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                                      Buffers: shared hit=50
+                                      ->  Hash Join  (cost=12.95..107.51 rows=33 width=4) (actual time=0.097..0.774 rows=33 loops=1)
+                                            Hash Cond: (b.unit_id = cu.unit_id)
+                                            Buffers: shared hit=50
+                                            ->  Seq Scan on stock_batch b  (cost=0.00..84.64 rows=3764 width=8) (actual time=0.006..0.335 rows=3764 loops=1)
+                                                  Buffers: shared hit=47
+                                            ->  Hash  (cost=12.85..12.85 rows=8 width=4) (actual time=0.021..0.021 rows=8 loops=1)
+                                                  Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                                  Buffers: shared hit=3
+                                                  ->  Bitmap Heap Scan on culture_unit cu  (cost=4.34..12.85 rows=8 width=4) (actual time=0.009..0.011 rows=8 loops=1)
+                                                        Recheck Cond: (farm_id = 64)
+                                                        Heap Blocks: exact=1
+                                                        Buffers: shared hit=3
+                                                        ->  Bitmap Index Scan on culture_unit_farm_id_unit_code_key  (cost=0.00..4.33 rows=8 width=0) (actual time=0.006..0.006 rows=8 loops=1)
+                                                              Index Cond: (farm_id = 64)
+                                                              Buffers: shared hit=2
+Planning:
+  Buffers: shared hit=16
+Planning Time: 0.471 ms
+Execution Time: 8.736 ms

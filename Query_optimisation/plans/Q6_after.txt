@@ -1,0 +1,17 @@
+-- Q6: Sargability: all readings on 1 Oct 2026 for one pond (BAD form — function on the column)
+-- phase: after
+
+SELECT count(*), ROUND(AVG(dissolved_oxygen_mgl), 2) AS avg_do
+FROM aqua.water_quality_reading
+WHERE unit_id = 316
+  AND date(recorded_at AT TIME ZONE 'Africa/Lagos') = DATE '2026-10-01'
+
+Aggregate  (cost=1374.60..1374.61 rows=1 width=40) (actual time=5.405..5.405 rows=1 loops=1)
+  Buffers: shared hit=59
+  ->  Index Scan using ix_wqr_unit_time on water_quality_reading  (cost=0.42..1374.58 rows=4 width=6) (actual time=0.612..5.385 rows=12 loops=1)
+        Index Cond: (unit_id = 316)
+        Filter: (date((recorded_at AT TIME ZONE 'Africa/Lagos'::text)) = '2026-10-01'::date)
+        Rows Removed by Filter: 3669
+        Buffers: shared hit=59
+Planning Time: 0.174 ms
+Execution Time: 5.450 ms

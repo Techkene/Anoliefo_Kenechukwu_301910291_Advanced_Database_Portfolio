@@ -1,0 +1,50 @@
+-- Q4: Batch report: feed used, harvest weight and FCR for every closed batch on one farm
+-- phase: after
+
+SELECT b.batch_id, cu.unit_code, b.stocked_on, b.closed_on,
+       fl.feed_kg,
+       h.harvest_kg,
+       ROUND(fl.feed_kg / NULLIF(h.harvest_kg - b.initial_count * b.initial_avg_weight_g / 1000, 0), 2) AS fcr
+FROM aqua.stock_batch b
+JOIN aqua.culture_unit cu ON cu.unit_id = b.unit_id
+JOIN LATERAL (SELECT SUM(qty_kg) AS feed_kg   FROM aqua.feeding_log fl WHERE fl.batch_id = b.batch_id) fl ON TRUE
+JOIN LATERAL (SELECT SUM(total_weight_kg) AS harvest_kg FROM aqua.harvest h WHERE h.batch_id = b.batch_id) h ON TRUE
+WHERE cu.farm_id = 64 AND b.status = 'harvested'
+ORDER BY b.stocked_on
+
+Sort  (cost=637.80..637.87 rows=27 width=116) (actual time=2.959..2.967 rows=26 loops=1)
+  Sort Key: b.stocked_on
+  Sort Method: quicksort  Memory: 26kB
+  Buffers: shared hit=222
+  ->  Nested Loop  (cost=27.96..637.16 rows=27 width=116) (actual time=0.204..2.935 rows=26 loops=1)
+        Buffers: shared hit=222
+        ->  Nested Loop  (cost=19.66..411.98 rows=27 width=62) (actual time=0.190..2.799 rows=26 loops=1)
+              Buffers: shared hit=144
+              ->  Hash Join  (cost=8.51..110.52 rows=27 width=30) (actual time=0.139..1.646 rows=26 loops=1)
+                    Hash Cond: (b.unit_id = cu.unit_id)
+                    Buffers: shared hit=50
+                    ->  Seq Scan on stock_batch b  (cost=0.00..94.05 rows=3019 width=26) (actual time=0.013..1.275 rows=3019 loops=1)
+                          Filter: ((status)::text = 'harvested'::text)
+                          Rows Removed by Filter: 745
+                          Buffers: shared hit=47
+                    ->  Hash  (cost=8.41..8.41 rows=8 width=12) (actual time=0.024..0.025 rows=8 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                          Buffers: shared hit=3
+                          ->  Index Scan using ix_unit_farm on culture_unit cu  (cost=0.28..8.41 rows=8 width=12) (actual time=0.015..0.019 rows=8 loops=1)
+                                Index Cond: (farm_id = 64)
+                                Buffers: shared hit=3
+              ->  Aggregate  (cost=11.14..11.15 rows=1 width=32) (actual time=0.044..0.044 rows=1 loops=26)
+                    Buffers: shared hit=94
+                    ->  Index Only Scan using ix_feeding_batch_cov on feeding_log fl  (cost=0.42..10.80 rows=136 width=6) (actual time=0.006..0.023 rows=145 loops=26)
+                          Index Cond: (batch_id = b.batch_id)
+                          Heap Fetches: 0
+                          Buffers: shared hit=94
+        ->  Aggregate  (cost=8.30..8.31 rows=1 width=32) (actual time=0.003..0.003 rows=1 loops=26)
+              Buffers: shared hit=78
+              ->  Index Scan using ix_harvest_batch on harvest h  (cost=0.28..8.30 rows=1 width=7) (actual time=0.002..0.002 rows=1 loops=26)
+                    Index Cond: (batch_id = b.batch_id)
+                    Buffers: shared hit=78
+Planning:
+  Buffers: shared hit=12
+Planning Time: 0.445 ms
+Execution Time: 3.025 ms

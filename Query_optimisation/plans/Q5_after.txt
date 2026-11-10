@@ -1,0 +1,58 @@
+-- Q5: Mortality spike detection: days where deaths > 3x the batch's 7-day average (one farm)
+-- phase: after
+
+WITH daily AS (
+    SELECT m.batch_id, m.recorded_on, SUM(m.dead_count) AS dead
+    FROM aqua.mortality_log m
+    JOIN aqua.stock_batch b ON b.batch_id = m.batch_id
+    JOIN aqua.culture_unit cu ON cu.unit_id = b.unit_id
+    WHERE cu.farm_id = 64
+    GROUP BY m.batch_id, m.recorded_on
+), windowed AS (
+    SELECT *, AVG(dead) OVER (PARTITION BY batch_id ORDER BY recorded_on
+                              ROWS BETWEEN 7 PRECEDING AND 1 PRECEDING) AS avg_prev7
+    FROM daily
+)
+SELECT batch_id, recorded_on, dead, ROUND(avg_prev7, 1) AS avg_prev7
+FROM windowed
+WHERE avg_prev7 IS NOT NULL AND dead > 3 * avg_prev7
+ORDER BY recorded_on DESC
+
+Sort  (cost=169.59..169.90 rows=124 width=48) (actual time=4.203..4.208 rows=11 loops=1)
+  Sort Key: windowed.recorded_on DESC
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=118
+  ->  Subquery Scan on windowed  (cost=144.40..165.28 rows=124 width=48) (actual time=2.426..4.178 rows=11 loops=1)
+        Filter: ((windowed.avg_prev7 IS NOT NULL) AND ((windowed.dead)::numeric > ('3'::numeric * windowed.avg_prev7)))
+        Rows Removed by Filter: 357
+        Buffers: shared hit=118
+        ->  WindowAgg  (cost=144.40..158.43 rows=374 width=48) (actual time=2.361..3.855 rows=368 loops=1)
+              Buffers: shared hit=118
+              ->  GroupAggregate  (cost=144.40..151.88 rows=374 width=16) (actual time=2.348..2.826 rows=368 loops=1)
+                    Group Key: m.batch_id, m.recorded_on
+                    Buffers: shared hit=118
+                    ->  Sort  (cost=144.40..145.34 rows=374 width=12) (actual time=2.342..2.401 rows=368 loops=1)
+                          Sort Key: m.batch_id, m.recorded_on
+                          Sort Method: quicksort  Memory: 39kB
+                          Buffers: shared hit=118
+                          ->  Nested Loop  (cost=8.80..128.42 rows=374 width=12) (actual time=0.215..2.095 rows=368 loops=1)
+                                Buffers: shared hit=118
+                                ->  Hash Join  (cost=8.51..103.08 rows=33 width=4) (actual time=0.197..1.742 rows=33 loops=1)
+                                      Hash Cond: (b.unit_id = cu.unit_id)
+                                      Buffers: shared hit=50
+                                      ->  Seq Scan on stock_batch b  (cost=0.00..84.64 rows=3764 width=8) (actual time=0.016..0.614 rows=3764 loops=1)
+                                            Buffers: shared hit=47
+                                      ->  Hash  (cost=8.41..8.41 rows=8 width=4) (actual time=0.028..0.029 rows=8 loops=1)
+                                            Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                            Buffers: shared hit=3
+                                            ->  Index Scan using ix_unit_farm on culture_unit cu  (cost=0.28..8.41 rows=8 width=4) (actual time=0.015..0.020 rows=8 loops=1)
+                                                  Index Cond: (farm_id = 64)
+                                                  Buffers: shared hit=3
+                                ->  Index Only Scan using ix_mortality_batch_date on mortality_log m  (cost=0.29..0.66 rows=11 width=12) (actual time=0.004..0.007 rows=11 loops=33)
+                                      Index Cond: (batch_id = b.batch_id)
+                                      Heap Fetches: 0
+                                      Buffers: shared hit=68
+Planning:
+  Buffers: shared hit=28
+Planning Time: 0.945 ms
+Execution Time: 4.297 ms

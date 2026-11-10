@@ -1,0 +1,62 @@
+-- Q8: Cooperative dashboard: monthly revenue and kg sold per state (2026)
+-- phase: after
+
+SELECT f.state_code, date_trunc('month', s.sold_on)::date AS month,
+       ROUND(SUM(s.qty_kg))                AS kg_sold,
+       ROUND(SUM(s.qty_kg * s.price_per_kg)) AS revenue_ngn
+FROM aqua.sale s
+JOIN aqua.harvest h       ON h.harvest_id = s.harvest_id
+JOIN aqua.stock_batch b   ON b.batch_id   = h.batch_id
+JOIN aqua.culture_unit cu ON cu.unit_id   = b.unit_id
+JOIN aqua.farm f          ON f.farm_id    = cu.farm_id
+WHERE s.sold_on >= DATE '2026-01-01'
+GROUP BY f.state_code, month
+ORDER BY f.state_code, month
+
+GroupAggregate  (cost=697.15..847.13 rows=3529 width=71) (actual time=16.513..19.373 rows=136 loops=1)
+  Group Key: f.state_code, ((date_trunc('month'::text, (s.sold_on)::timestamp with time zone))::date)
+  Buffers: shared hit=154
+  ->  Sort  (cost=697.15..705.97 rows=3529 width=18) (actual time=16.490..16.756 rows=3507 loops=1)
+        Sort Key: f.state_code, ((date_trunc('month'::text, (s.sold_on)::timestamp with time zone))::date)
+        Sort Method: quicksort  Memory: 261kB
+        Buffers: shared hit=154
+        ->  Hash Join  (cost=255.03..489.20 rows=3529 width=18) (actual time=3.718..12.421 rows=3507 loops=1)
+              Hash Cond: (cu.farm_id = f.farm_id)
+              Buffers: shared hit=154
+              ->  Hash Join  (cost=247.98..446.20 rows=3529 width=19) (actual time=3.616..9.343 rows=3507 loops=1)
+                    Hash Cond: (b.unit_id = cu.unit_id)
+                    Buffers: shared hit=151
+                    ->  Hash Join  (cost=219.62..408.53 rows=3529 width=19) (actual time=3.324..7.759 rows=3507 loops=1)
+                          Hash Cond: (h.batch_id = b.batch_id)
+                          Buffers: shared hit=143
+                          ->  Hash Join  (cost=87.93..267.56 rows=3529 width=19) (actual time=2.194..5.276 rows=3507 loops=1)
+                                Hash Cond: (s.harvest_id = h.harvest_id)
+                                Buffers: shared hit=96
+                                ->  Seq Scan on sale s  (cost=0.00..170.36 rows=3529 width=19) (actual time=0.693..2.262 rows=3507 loops=1)
+                                      Filter: (sold_on >= '2026-01-01'::date)
+                                      Rows Removed by Filter: 4042
+                                      Buffers: shared hit=76
+                                ->  Hash  (cost=50.19..50.19 rows=3019 width=8) (actual time=1.465..1.466 rows=3019 loops=1)
+                                      Buckets: 4096  Batches: 1  Memory Usage: 150kB
+                                      Buffers: shared hit=20
+                                      ->  Seq Scan on harvest h  (cost=0.00..50.19 rows=3019 width=8) (actual time=0.020..0.679 rows=3019 loops=1)
+                                            Buffers: shared hit=20
+                          ->  Hash  (cost=84.64..84.64 rows=3764 width=8) (actual time=1.105..1.106 rows=3764 loops=1)
+                                Buckets: 4096  Batches: 1  Memory Usage: 180kB
+                                Buffers: shared hit=47
+                                ->  Seq Scan on stock_batch b  (cost=0.00..84.64 rows=3764 width=8) (actual time=0.009..0.518 rows=3764 loops=1)
+                                      Buffers: shared hit=47
+                    ->  Hash  (cost=17.05..17.05 rows=905 width=8) (actual time=0.283..0.283 rows=905 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 44kB
+                          Buffers: shared hit=8
+                          ->  Seq Scan on culture_unit cu  (cost=0.00..17.05 rows=905 width=8) (actual time=0.012..0.131 rows=905 loops=1)
+                                Buffers: shared hit=8
+              ->  Hash  (cost=4.80..4.80 rows=180 width=7) (actual time=0.084..0.084 rows=180 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 16kB
+                    Buffers: shared hit=3
+                    ->  Seq Scan on farm f  (cost=0.00..4.80 rows=180 width=7) (actual time=0.017..0.045 rows=180 loops=1)
+                          Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=37
+Planning Time: 0.774 ms
+Execution Time: 19.644 ms

@@ -1,0 +1,18 @@
+before Q1     207.95 ms  Seq Scan on water_quality_reading
+before Q2    1586.47 ms  Index Scan on culture_unit (culture_unit_farm_id_unit_code_key); Seq Scan on water_quality_reading
+before Q3     332.28 ms  Seq Scan on water_quality_reading; Seq Scan on culture_unit; Seq Scan on farm
+before Q4    2273.99 ms  Seq Scan on stock_batch; Bitmap Heap Scan on culture_unit; Bitmap Index Scan on culture_unit_farm_id_unit_code_key
+before Q5       7.02 ms  Seq Scan on mortality_log; Seq Scan on stock_batch; Bitmap Heap Scan on culture_unit
+before Q6     171.12 ms  Seq Scan on water_quality_reading
+before Q7     224.97 ms  Seq Scan on water_quality_reading
+before Q8      18.30 ms  Seq Scan on sale; Seq Scan on harvest; Seq Scan on stock_batch
+after  Q1       0.92 ms  Index Scan on water_quality_reading (ix_wqr_unit_time)
+after  Q2       0.64 ms  Index Scan on culture_unit (ix_unit_farm); Index Scan on water_quality_reading (ix_wqr_unit_time)
+after  Q3       1.24 ms  Index Only Scan on water_quality_reading (ix_wqr_low_oxygen); Seq Scan on culture_unit; Seq Scan on farm
+after  Q4       2.98 ms  Seq Scan on stock_batch; Index Scan on culture_unit (ix_unit_farm); Index Only Scan on feeding_log (ix_feeding_batch_cov)
+after  Q5       4.93 ms  Seq Scan on stock_batch; Index Scan on culture_unit (ix_unit_farm); Index Only Scan on mortality_log (ix_mortality_batch_date)
+after  Q6       5.75 ms  Index Scan on water_quality_reading (ix_wqr_unit_time)
+after  Q7       0.48 ms  Index Scan on water_quality_reading (ix_wqr_unit_time)
+after  Q8      19.54 ms  Seq Scan on sale; Seq Scan on harvest; Seq Scan on stock_batch
+
+Written performance_results.md, performance_chart.png, plans/, results/

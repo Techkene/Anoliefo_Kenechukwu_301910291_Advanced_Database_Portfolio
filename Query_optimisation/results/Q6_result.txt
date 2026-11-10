@@ -1,0 +1,5 @@
+-- Q6: Sargability: all readings on 1 Oct 2026 for one pond (BAD form — function on the column)
+-- 1 row(s); first 15 shown
+
+count | avg_do
+12 | 5.13

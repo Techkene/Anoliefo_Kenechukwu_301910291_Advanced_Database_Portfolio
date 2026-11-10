@@ -1,0 +1,19 @@
+-- Q3: Alert feed: dangerously low oxygen (< 2.5 mg/L) in Lagos in the last 24 hours
+-- 16 row(s); first 15 shown
+
+farm_name | unit_code | recorded_at | dissolved_oxygen_mgl
+Nwosu Fish Farm | POND-03 | 2026-11-03 03:00:00+01:00 | 2.10
+Chukwu Fish Farm | CAGE-04 | 2026-11-03 03:00:00+01:00 | 2.16
+Eze Fish Farm | TANK-02 | 2026-11-03 03:00:00+01:00 | 2.19
+Olawale Fish Farm | TANK-02 | 2026-11-03 03:00:00+01:00 | 2.29
+Eze Fish Farm | POND-07 | 2026-11-03 03:00:00+01:00 | 2.30
+Onyekachi Fish Farm | TANK-02 | 2026-11-03 01:00:00+01:00 | 2.37
+Ogunleye Fish Farm | TANK-02 | 2026-11-03 05:00:00+01:00 | 2.38
+Olawale Fish Farm | POND-07 | 2026-11-03 05:00:00+01:00 | 2.40
+Ibrahim Fish Farm II | POND-03 | 2026-11-03 01:00:00+01:00 | 2.41
+Bello Fish Farm II | POND-07 | 2026-11-03 05:00:00+01:00 | 2.42
+Ibrahim Fish Farm | CAGE-01 | 2026-11-03 01:00:00+01:00 | 2.43
+Onyekachi Fish Farm | TANK-02 | 2026-11-03 05:00:00+01:00 | 2.44
+Chukwu Fish Farm | TANK-03 | 2026-11-03 05:00:00+01:00 | 2.44
+Ogunleye Fish Farm | TANK-02 | 2026-11-03 01:00:00+01:00 | 2.46
+Ogunleye Fish Farm | TANK-01 | 2026-11-03 05:00:00+01:00 | 2.47
