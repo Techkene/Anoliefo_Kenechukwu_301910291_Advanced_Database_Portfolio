@@ -1,0 +1,121 @@
+SET
+INSERT 0 1
+Demo batch: 2717
+
+=== 1. COMMIT: record 30 kg of feed — log inserted AND stock reduced together ===
+BEGIN
+CALL
+COMMIT
+ stock_after_commit 
+--------------------
+              70.00
+(1 row)
+
+ new_logs 
+----------
+        1
+(1 row)
+
+
+=== 2. AUTOMATIC ROLLBACK: try to feed 500 kg when only 70 kg is in store ===
+BEGIN
+psql:02_commit_rollback_savepoint.sql:28: ERROR:  Not enough feed: 70.00 kg in store, 500 kg requested
+CONTEXT:  PL/pgSQL function record_feeding(integer,integer,numeric,integer) line 18 at RAISE
+ROLLBACK
+ stock_unchanged 
+-----------------
+           70.00
+(1 row)
+
+ new_logs_still 
+----------------
+              1
+(1 row)
+
+
+=== 3. EXPLICIT ROLLBACK: attendant records 20 kg, then cancels (wrong pond) ===
+BEGIN
+CALL
+ stock_inside_txn 
+------------------
+            50.00
+(1 row)
+
+ROLLBACK
+ stock_after_rollback 
+----------------------
+                70.00
+(1 row)
+
+
+=== 4. SAVEPOINT: offline sync of 4 queued records — one bad record must not lose the rest ===
+BEGIN
+SAVEPOINT
+CALL
+SAVEPOINT
+INSERT 0 1
+SAVEPOINT
+psql:02_commit_rollback_savepoint.sql:48: ERROR:  new row for relation "water_quality_reading" violates check constraint "water_quality_reading_ph_check"
+DETAIL:  Failing row contains (1233614, 1, 2026-11-11 15:00:38.116053+01, 19.50, null, null, null, manual).
+ROLLBACK
+SAVEPOINT
+INSERT 0 1
+COMMIT
+ stock_after_sync 
+------------------
+            60.00
+(1 row)
+
+ mortality_rows_today 
+----------------------
+                    1
+(1 row)
+
+ bad_ph_rows 
+-------------
+           0
+(1 row)
+
+
+=== 5. Oversell protection: harvest sale larger than what is left ===
+ harvest_id | total_weight_kg |  sold   
+------------+-----------------+---------
+          1 |         1319.06 | 1319.06
+(1 row)
+
+BEGIN
+psql:02_commit_rollback_savepoint.sql:62: ERROR:  Oversell blocked: 1319.06 kg harvested, 1319.06 kg already sold, 99999 kg requested
+CONTEXT:  PL/pgSQL function sell_fish(integer,integer,numeric,numeric) line 8 at RAISE
+ROLLBACK
+
+=== 6. ATOMIC TRANSFER: farm 1 lends 25 kg to farm 5 — total feed is conserved ===
+INSERT 0 1
+ total_before 
+--------------
+        60.00
+(1 row)
+
+CALL
+ farm_id | qty_kg 
+---------+--------
+       1 |  35.00
+       5 |  25.00
+(2 rows)
+
+ total_after 
+-------------
+       60.00
+(1 row)
+
+Transfer more than farm 1 holds (fails, nothing moves):
+psql:02_commit_rollback_savepoint.sql:73: ERROR:  new row for relation "feed_inventory" violates check constraint "feed_inventory_qty_kg_check"
+DETAIL:  Failing row contains (1, 4, -965.00, 2026-11-11 15:00:38.836086+01).
+CONTEXT:  SQL statement "UPDATE feed_inventory SET qty_kg = qty_kg - p_qty, updated_at = now()
+    WHERE farm_id = p_from AND feed_id = p_feed"
+PL/pgSQL function transfer_feed(integer,integer,integer,numeric) line 8 at SQL statement
+ farm_id | qty_kg 
+---------+--------
+       1 |  35.00
+       5 |  25.00
+(2 rows)
+

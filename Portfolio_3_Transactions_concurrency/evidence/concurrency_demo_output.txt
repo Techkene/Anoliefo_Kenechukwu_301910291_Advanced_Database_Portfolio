@@ -1,0 +1,123 @@
+
+==============================================================================================================
+D1  LOST UPDATE — READ COMMITTED, app reads stock then writes the new value
+    Store has 100 kg. Attendant A records 30 kg, attendant B records 20 kg. Correct result: 50 kg.
+==============================================================================================================
+[  0.29s] A       SELECT qty_kg FROM feed_inventory WHERE farm_id = 1 AND feed_id = 4                        -> [(Decimal('100.00'),)]
+[  0.30s] B       SELECT qty_kg FROM feed_inventory WHERE farm_id = 1 AND feed_id = 4                        -> [(Decimal('100.00'),)]
+[  0.30s] A       UPDATE feed_inventory SET qty_kg = %s WHERE farm_id = 1 AND feed_id = 4                    -> UPDATE 1
+[  0.30s] A       COMMIT
+[  0.30s] B       UPDATE feed_inventory SET qty_kg = %s WHERE farm_id = 1 AND feed_id = 4                    -> UPDATE 1
+[  0.30s] B       COMMIT
+[  0.37s] CHECK   final stock = 80.00 kg  (expected 50) -> A's 30 kg deduction was LOST
+
+==============================================================================================================
+D2  FIX 1 — pessimistic locking: SELECT ... FOR UPDATE
+    B's read blocks until A commits, then B sees A's result.
+==============================================================================================================
+[  0.60s] A       SELECT qty_kg FROM feed_inventory WHERE farm_id = 1 AND feed_id = 4 FOR UPDATE             -> [(Decimal('100.00'),)]
+[  1.79s] MONITOR pg_stat_activity/pg_locks for B: [('aquasense-B', 'Lock', 'transactionid', 'ShareLock', False, [15004])]  (A pid = 15004)
+[  1.79s] A       UPDATE feed_inventory SET qty_kg = %s WHERE farm_id = 1 AND feed_id = 4                    -> UPDATE 1
+[  1.80s] A       COMMIT
+[  1.80s] B       SELECT qty_kg FROM feed_inventory WHERE farm_id = 1 AND feed_id = 4 FOR UPDATE             -> [(Decimal('70.00'),)]
+[  1.80s] B       (waited 1.19s for A's row lock)
+[  1.80s] B       UPDATE feed_inventory SET qty_kg = %s WHERE farm_id = 1 AND feed_id = 4                    -> UPDATE 1
+[  1.80s] B       COMMIT
+[  1.91s] CHECK   final stock = 50.00 kg  (expected 50) -> correct
+
+==============================================================================================================
+D3  FIX 2 — optimistic: REPEATABLE READ detects the conflicting update; app retries
+==============================================================================================================
+[  2.14s] A       SELECT qty_kg FROM feed_inventory WHERE farm_id = 1 AND feed_id = 4                        -> [(Decimal('100.00'),)]
+[  2.15s] B       SELECT qty_kg FROM feed_inventory WHERE farm_id = 1 AND feed_id = 4                        -> [(Decimal('100.00'),)]
+[  2.15s] A       UPDATE feed_inventory SET qty_kg = %s WHERE farm_id = 1 AND feed_id = 4                    -> UPDATE 1
+[  2.15s] A       COMMIT
+[  2.15s] B       ERROR 40001 ERROR:  could not serialize access due to concurrent update
+[  2.15s] B       ROLLBACK
+[  2.15s] B       retry #1 with a fresh snapshot
+[  2.15s] B       SELECT qty_kg FROM feed_inventory WHERE farm_id = 1 AND feed_id = 4                        -> [(Decimal('70.00'),)]
+[  2.15s] B       UPDATE feed_inventory SET qty_kg = %s WHERE farm_id = 1 AND feed_id = 4                    -> UPDATE 1
+[  2.16s] B       COMMIT
+[  2.30s] CHECK   final stock = 50.00 kg  (expected 50) -> correct after one retry
+
+==============================================================================================================
+D4  NON-REPEATABLE READ under READ COMMITTED
+    A builds a stock report and reads the same row twice; B commits a delivery in between.
+==============================================================================================================
+[  2.59s] A       SELECT qty_kg FROM feed_inventory WHERE farm_id = 1 AND feed_id = 4                        -> [(Decimal('100.00'),)]
+[  2.60s] B       UPDATE feed_inventory SET qty_kg = qty_kg + 150 WHERE farm_id = 1 AND feed_id = 4          -> UPDATE 1
+[  2.60s] B       COMMIT
+[  2.60s] A       SELECT qty_kg FROM feed_inventory WHERE farm_id = 1 AND feed_id = 4                        -> [(Decimal('250.00'),)]
+[  2.60s] A       COMMIT
+[  2.60s] CHECK   A read 100.00 then 250.00 -> CHANGED inside one transaction (non-repeatable read)
+
+==============================================================================================================
+D4  NON-REPEATABLE READ under REPEATABLE READ
+    A builds a stock report and reads the same row twice; B commits a delivery in between.
+==============================================================================================================
+[  2.86s] A       SELECT qty_kg FROM feed_inventory WHERE farm_id = 1 AND feed_id = 4                        -> [(Decimal('100.00'),)]
+[  2.86s] B       UPDATE feed_inventory SET qty_kg = qty_kg + 150 WHERE farm_id = 1 AND feed_id = 4          -> UPDATE 1
+[  2.86s] B       COMMIT
+[  2.87s] A       SELECT qty_kg FROM feed_inventory WHERE farm_id = 1 AND feed_id = 4                        -> [(Decimal('100.00'),)]
+[  2.87s] A       COMMIT
+[  2.87s] CHECK   A read 100.00 then 100.00 -> STABLE (same snapshot for the whole transaction)
+
+==============================================================================================================
+D5  WRITE SKEW under REPEATABLE READ
+    Harvest 3020 has 1000 kg. Traders A and B each want 600 kg. Rule: total sold <= 1000 kg.
+    Each checks what is left, sees 1000 kg, and inserts a NEW sale row (no row is updated twice).
+==============================================================================================================
+[  3.25s] A       SELECT COALESCE(SUM(qty_kg),0) FROM sale WHERE harvest_id = 3020                           -> [(Decimal('0'),)]
+[  3.25s] B       SELECT COALESCE(SUM(qty_kg),0) FROM sale WHERE harvest_id = 3020                           -> [(Decimal('0'),)]
+[  3.31s] A       INSERT INTO sale (harvest_id, trader_id, qty_kg, price_per_kg, sold_on) VALUES (3020, %s,  -> INSERT 0 1
+[  3.32s] B       INSERT INTO sale (harvest_id, trader_id, qty_kg, price_per_kg, sold_on) VALUES (3020, %s,  -> INSERT 0 1
+[  3.32s] A       COMMIT
+[  3.32s] B       COMMIT
+[  3.43s] CHECK   total sold = 1200.00 kg of 1000 kg -> OVERSOLD (anomaly allowed)
+
+==============================================================================================================
+D5  WRITE SKEW under SERIALIZABLE
+    Harvest 3020 has 1000 kg. Traders A and B each want 600 kg. Rule: total sold <= 1000 kg.
+    Each checks what is left, sees 1000 kg, and inserts a NEW sale row (no row is updated twice).
+==============================================================================================================
+[  3.70s] A       SELECT COALESCE(SUM(qty_kg),0) FROM sale WHERE harvest_id = 3020                           -> [(Decimal('0'),)]
+[  3.71s] B       SELECT COALESCE(SUM(qty_kg),0) FROM sale WHERE harvest_id = 3020                           -> [(Decimal('0'),)]
+[  3.73s] A       INSERT INTO sale (harvest_id, trader_id, qty_kg, price_per_kg, sold_on) VALUES (3020, %s,  -> INSERT 0 1
+[  3.74s] B       INSERT INTO sale (harvest_id, trader_id, qty_kg, price_per_kg, sold_on) VALUES (3020, %s,  -> INSERT 0 1
+[  3.75s] A       COMMIT
+[  3.75s] B       ERROR 40001 ERROR:  could not serialize access due to read/write dependencies among transactions
+[  3.75s] B       ROLLBACK
+[  3.85s] CHECK   total sold = 600.00 kg of 1000 kg -> rule held
+
+==============================================================================================================
+D5b FIX in READ COMMITTED: sell_fish() locks the harvest row (FOR UPDATE) before checking
+==============================================================================================================
+[  4.16s] A       SELECT sell_fish(%s, 525, 600, 3200)                                                       -> [(7554,)]
+[  5.17s] A       COMMIT
+[  5.18s] B       ERROR AQ003 ERROR:  Oversell blocked: 1000.00 kg harvested, 600.00 kg already sold, 600 kg requested
+[  5.18s] B       ROLLBACK
+[  5.32s] CHECK   total sold = 600.00 kg of 1000 kg -> rule held
+
+==============================================================================================================
+D6  DEADLOCK — two feed transfers in opposite directions, rows locked in opposite order
+    A: farm 1 -> farm 5 (locks farm 1 first).  B: farm 5 -> farm 1 (locks farm 5 first).
+==============================================================================================================
+[  5.70s] A       UPDATE feed_inventory SET qty_kg = qty_kg - 10 WHERE farm_id = 1 AND feed_id = 4           -> UPDATE 1
+[  5.71s] B       UPDATE feed_inventory SET qty_kg = qty_kg - 10 WHERE farm_id = 5 AND feed_id = 4           -> UPDATE 1
+[  6.72s] A       ERROR 40P01 ERROR: deadlock detected DETAIL: Process 10212 waits for ShareLock on transaction 977; blocked by process 9872. Process 9872 waits for ShareLock on tr
+[  6.72s] A       ROLLBACK
+[  6.72s] B       UPDATE feed_inventory SET qty_kg = qty_kg + 10 WHERE farm_id = 1 AND feed_id = 4           -> UPDATE 1
+[  6.73s] B       COMMIT
+[  6.73s] CHECK   outcome: {'A': 'aborted (deadlock victim)', 'B': 'committed'} -> PostgreSQL detected the cycle after deadlock_timeout (1 s) and aborted one
+
+==============================================================================================================
+D6b FIX — transfer_feed() always locks rows in ascending farm_id order
+==============================================================================================================
+[  7.11s] A       CALL transfer_feed(1, 5, 4, 10)                                                            -> CALL
+[  7.91s] A       COMMIT
+[  7.91s] B       CALL transfer_feed(5, 1, 4, 30)                                                            -> CALL
+[  7.91s] B       (waited 0.80s — queued behind A instead of deadlocking)
+[  7.91s] B       COMMIT
+[  8.02s] CHECK   balances [(1, Decimal('120.00')), (5, Decimal('80.00'))]; total = 200.00 kg (expected 200, farm1 = 120, farm5 = 80)
+
+All demos finished.
