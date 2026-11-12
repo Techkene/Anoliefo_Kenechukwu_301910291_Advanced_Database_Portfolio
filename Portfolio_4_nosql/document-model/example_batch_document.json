@@ -1,0 +1,104 @@
+{
+    "_id": "batch_316",
+    "farm": {
+        "lga": "Warri South",
+        "name": "Nwosu Fish Farm",
+        "state": "DE",
+        "farm_id": 64,
+        "location": {
+            "type": "Point",
+            "coordinates": [
+                5.79008,
+                5.43551
+            ]
+        }
+    },
+    "unit": {
+        "code": "TANK-01",
+        "type": "concrete_tank",
+        "unit_id": 316,
+        "volume_m3": 23.10
+    },
+    "daily": [
+        {
+            "date": "2024-12-29",
+            "dead": 0,
+            "feed": "Coppens 2.0mm",
+            "feed_kg": 0.36
+        },
+        {
+            "date": "2024-12-30",
+            "dead": 0,
+            "feed": "Coppens 2.0mm",
+            "feed_kg": 0.36
+        },
+        {
+            "date": "2024-12-31",
+            "dead": 0,
+            "feed": "Coppens 2.0mm",
+            "feed_kg": 0.37
+        }
+    ],
+    "status": "harvested",
+    "harvest": {
+        "date": "2025-05-30",
+        "total_kg": 640.94,
+        "fish_count": 1341
+    },
+    "samples": [
+        {
+            "date": "2025-01-12",
+            "avg_weight_g": 15.7
+        },
+        {
+            "date": "2025-01-26",
+            "avg_weight_g": 31.5
+        },
+        {
+            "date": "2025-02-09",
+            "avg_weight_g": 49.0
+        },
+        {
+            "date": "2025-02-23",
+            "avg_weight_g": 73.0
+        },
+        {
+            "date": "2025-03-09",
+            "avg_weight_g": 112.3
+        },
+        {
+            "date": "2025-03-23",
+            "avg_weight_g": 133.9
+        },
+        {
+            "date": "2025-04-06",
+            "avg_weight_g": 187.5
+        },
+        {
+            "date": "2025-04-20",
+            "avg_weight_g": 228.4
+        },
+        {
+            "date": "2025-05-04",
+            "avg_weight_g": 286.6
+        },
+        {
+            "date": "2025-05-18",
+            "avg_weight_g": 338.6
+        }
+    ],
+    "species": "Nile tilapia",
+    "summary": {
+        "dead": 171,
+        "feed_kg": 795.41,
+        "survival_pct": 89.3
+    },
+    "stocking": {
+        "count": 1593,
+        "hatchery": "CEFAS Hatchery",
+        "avg_weight_g": 8.96
+    },
+    "closed_on": "2025-05-30",
+    "daily_note": "first 3 of 144 daily entries shown",
+    "stocked_on": "2024-12-29"
+}

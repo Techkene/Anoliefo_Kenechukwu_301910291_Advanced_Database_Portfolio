@@ -1,0 +1,125 @@
+Connected to 7.2.4 (Memurai) on 127.0.0.1:6379
+
+====================================================================================================
+S1  LOAD from PostgreSQL into Redis structures
+====================================================================================================
+Loaded 905 latest-reading hashes, 23,584 time-window entries, 180 geo-indexed farms in 4.83s. DBSIZE = 2171
+
+====================================================================================================
+S2  KEY-VALUE LOOKUP — pond dashboard header (latest reading of pond 316)
+====================================================================================================
+redis> HGETALL pond:316:latest
+       {'farm_id': '64', 'unit_code': 'TANK-01', 'ts': '2026-11-03T23:00:00+01:00', 'ph': '6.78', 'do': '4.42', 'temp': '27.3', 'nh3': '0.322'}
+Single client, median of 2,000 calls: Redis HGETALL = 404 µs | PostgreSQL (indexed) = 354 µs.
+       -> With one client on the same machine both are dominated by the network round trip; no real difference.
+32 concurrent Python clients x 300 farm-overview screens: Redis = 857 screens/s | PostgreSQL = 1,135 screens/s.
+       -> PostgreSQL was faster here. This test is client-bound: redis-py is pure Python (GIL-limited) and the
+          Redis version needs two round trips per screen (SMEMBERS, then a pipeline of HGETALLs), while psycopg2
+          is C and PostgreSQL returns the whole screen in one query. For a fair server comparison see
+          evidence/server_benchmark_output.txt (redis-benchmark vs pgbench, both C clients).
+
+====================================================================================================
+S3  SORTED SET as a time window — dissolved oxygen for pond 316, last 24 hours
+====================================================================================================
+redis> ZRANGEBYSCORE pond:316:do 1793660340 1793746740
+       12 readings
+       03 Nov 01:00  DO = 3.08 mg/L
+       03 Nov 03:00  DO = 2.09 mg/L
+       03 Nov 05:00  DO = 2.51 mg/L
+       03 Nov 07:00  DO = 4.05 mg/L
+       03 Nov 09:00  DO = 5.01 mg/L
+       03 Nov 11:00  DO = 5.74 mg/L
+       03 Nov 13:00  DO = 6.42 mg/L
+       03 Nov 15:00  DO = 7.63 mg/L
+       03 Nov 17:00  DO = 6.79 mg/L
+       03 Nov 19:00  DO = 6.33 mg/L
+       03 Nov 21:00  DO = 5.58 mg/L
+       03 Nov 23:00  DO = 4.42 mg/L
+redis> ZREMRANGEBYSCORE pond:316:do -inf 1793487540   (retention: the app chart only needs 72 h)
+       48 old readings removed, 36 kept
+
+====================================================================================================
+S4  STREAM + CONSUMER GROUP — live sensor ingestion for pond 3 (farm 1, Delta)
+====================================================================================================
+redis> XLEN stream:readings
+       12
+redis> XRANGE stream:readings - + COUNT 2
+       [('1794511995953-0', {'unit_id': '3', 'farm_id': '1', 'ts': '2026-11-04T00:00:00+01:00', 'do': '5.1', 'ph': '7.3', 'temp': '27.8', 'nh3': '0.12'}), ('1794511995954-0', {'unit_id': '3', 'farm_id': '1', 'ts': '2026-11-04T00:30:00+01:00', 'do': '4.6', 'ph': '7.3', 'temp': '27.8', 'nh3': '0.12'})]
+worker-1 processed 12 messages, raised 4 low-oxygen alerts
+redis> ZRANGE farm:1:alerts 0 -1
+       ['LOW_DO|pond 3|2026-11-04T02:30:00+01:00|2.3 mg/L', 'LOW_DO|pond 3|2026-11-04T03:00:00+01:00|1.9 mg/L', 'LOW_DO|pond 3|2026-11-04T03:30:00+01:00|1.7 mg/L', 'LOW_DO|pond 3|2026-11-04T04:00:00+01:00|2.2 mg/L']
+redis> XPENDING stream:readings alert-workers
+       {'pending': 0, 'min': None, 'max': None, 'consumers': []}
+writer-1 batch-inserted 12 rows into PostgreSQL -> verified in SQL: (12, Decimal('1.70')) (count, min DO)
+
+====================================================================================================
+S5  IDEMPOTENT OFFLINE SYNC — the phone retries an upload after a network drop
+====================================================================================================
+redis> SET sync:device-7f3a:rec-000184 done NX EX 86400
+       True
+redis> SET sync:device-7f3a:rec-000184 done NX EX 86400   (retry of the same record)
+       None
+       First upload is processed; the retry returns None, so the server skips it -> no duplicate feeding log.
+
+====================================================================================================
+S6  OTP LOGIN CODES with TTL (farmers log in with their phone number)
+====================================================================================================
+redis> SET otp:+2348030007919 482913 EX 300
+       True
+redis> TTL otp:+2348030007919
+       300
+redis> GET otp:+2348030015838   (after 2.2 s, code was set with EX 2)
+       None
+
+====================================================================================================
+S7  LEADERBOARD — best feed conversion ratio (FCR) per cooperative, 2026 harvests
+====================================================================================================
+redis> ZRANGE coop:5:fcr 0 4 WITHSCORES   (Ibadan Fish Farmers Association; lower FCR = less feed per kg of fish)
+       [('farm:139', 'Okafor Fish Farm', 1.193), ('farm:94', 'Adeyemi Fish Farm', 1.357), ('farm:79', 'Adeyemi Fish Farm', 1.404), ('farm:179', 'Chukwu Fish Farm II', 1.511), ('farm:34', 'Lawal Fish Farm', 1.557)]
+redis> ZRANK coop:5:fcr farm:154
+       11 of 11
+
+====================================================================================================
+S8  GEO SEARCH — trader in Epe (6.583 N, 3.983 E) wants farms within 60 km with fish near harvest
+====================================================================================================
+redis> GEOSEARCH farms:geo FROMLONLAT 3.983 6.583 BYRADIUS 60 km ASC WITHDIST
+       23 farms
+       farm:75   Ogunleye Fish Farm              3.3 km   harvest-ready: 0
+       farm:33   Nnamdi Fish Farm                5.1 km   harvest-ready: 1
+       farm:138  Nwosu Fish Farm                 6.2 km   harvest-ready: 0
+       farm:54   Okonkwo Fish Farm               6.7 km   harvest-ready: 0
+       farm:96   Lawal Fish Farm                 7.2 km   harvest-ready: 1
+       farm:117  Nnamdi Fish Farm                7.9 km   harvest-ready: 0
+       farm:163  Olawale Fish Farm II            9.9 km   harvest-ready: 1
+       farm:159  Ibrahim Fish Farm              10.5 km   harvest-ready: 1
+
+====================================================================================================
+S9  ATOMIC LUA SCRIPT — cached feed stock is decremented only if enough remains
+====================================================================================================
+redis> EVALSHA <use_feed> 1 farm:1:feedstock feed:4 30
+       [1, '70']
+redis> EVALSHA <use_feed> 1 farm:1:feedstock feed:4 90
+       [0, '70']
+       Redis runs a Lua script as one atomic step (single-threaded), so the check-then-decrement cannot be
+       interleaved by another client — the same lost-update protection as SELECT ... FOR UPDATE in Portfolio 3.
+
+====================================================================================================
+S10 CACHE-ASIDE — cooperative revenue dashboard for Lagos (expensive SQL, needed often)
+====================================================================================================
+       call 1: cache MISS   42.79 ms  (9 months)
+       call 2: cache HIT     0.56 ms  (9 months)
+redis> TTL cache:dash:LA:2026
+       600
+
+====================================================================================================
+S11 MEMORY AND PERSISTENCE
+====================================================================================================
+       MEMORY USAGE pond:316:latest         200 bytes   TYPE hash
+       MEMORY USAGE pond:316:do           1,080 bytes   TYPE zset
+       MEMORY USAGE stream:readings       5,888 bytes   TYPE stream
+       MEMORY USAGE farms:geo            21,568 bytes   TYPE zset
+       MEMORY USAGE coop:5:fcr              248 bytes   TYPE zset
+       used_memory_human = 2.73M, DBSIZE = 2193 keys
+       aof_enabled = 1, appendfsync = everysec, maxmemory-policy = volatile-lru
+
+Done.
