@@ -1,0 +1,71 @@
+
+====================================================================================================
+S1  DATA DISTRIBUTION - counted directly on each shard server
+====================================================================================================
+shard1 (port 5442):
+  readings | farms | size
+  581403 | 103 | 77 MB
+shard2 (port 5443):
+  readings | farms | size
+  452221 | 77 | 60 MB
+Does any farm exist on both shards? (must be 0 - all of a farm's data is co-located)
+  farms_on_both
+  0
+
+====================================================================================================
+S2  WHY HASH AND NOT REGION? - skew if we had sharded South vs North
+====================================================================================================
+  region_shard | farms | pct_of_readings
+  North shard | 43 | 23.5
+  South shard | 137 | 76.5
+
+  hash_partition | farms | pct_of_readings
+  aqua.wqr_dist_p0 | 103 | 56.2
+  aqua.wqr_dist_p1 | 77 | 43.8
+
+====================================================================================================
+S3  SINGLE-SHARD QUERY - farm 64's pond dashboard: partition pruning sends it to ONE server
+====================================================================================================
+Limit (actual time=30.533..30.538 rows=12 loops=1)
+  Output: wqr_dist.unit_id, wqr_dist.recorded_at, wqr_dist.dissolved_oxygen_mgl
+  ->  Foreign Scan on aqua.wqr_dist_p0 wqr_dist (actual time=30.525..30.528 rows=12 loops=1)
+        Output: wqr_dist.unit_id, wqr_dist.recorded_at, wqr_dist.dissolved_oxygen_mgl
+        Remote SQL: SELECT unit_id, recorded_at, dissolved_oxygen_mgl FROM public.readings WHERE ((farm_id = 64)) AND ((unit_id = 316)) ORDER BY recorded_at DESC NULLS FIRST
+Planning Time: 0.714 ms
+Execution Time: 31.308 ms
+
+====================================================================================================
+S4  CROSS-SHARD QUERY - readings and average oxygen per farm (scatter-gather)
+====================================================================================================
+  4a pushdown OFF (raw rows shipped to the coordinator):   1406.9 ms
+  4b pushdown ON  (each shard runs its own GROUP BY)     :    374.9 ms
+  4c same aggregate on the single-server table          :    509.5 ms
+
+Plan with pushdown (note Async Foreign Scan on both shards and the Remote SQL):
+Append
+  ->  Async Foreign Scan
+        Output: wqr_dist.farm_id, (count(*)), (round(avg(wqr_dist.dissolved_oxygen_mgl), 2))
+        Relations: Aggregate on (aqua.wqr_dist_p0 wqr_dist)
+        Remote SQL: SELECT farm_id, count(*), round(avg(dissolved_oxygen_mgl), 2) FROM public.readings GROUP BY 1
+  ->  Async Foreign Scan
+        Output: wqr_dist_1.farm_id, (count(*)), (round(avg(wqr_dist_1.dissolved_oxygen_mgl), 2))
+        Relations: Aggregate on (aqua.wqr_dist_p1 wqr_dist_1)
+        Remote SQL: SELECT farm_id, count(*), round(avg(dissolved_oxygen_mgl), 2) FROM public.readings GROUP BY 1
+
+====================================================================================================
+S5  WRITE ROUTING - a new reading for farm 64 goes to the correct shard automatically
+====================================================================================================
+  on shard1: 1
+  on shard2: 0
+
+====================================================================================================
+S6  SHARD FAILURE - shard2 goes down
+====================================================================================================
+  shard2 stopped.
+  Farm 1 (lives on shard1) - still works:
+  farm_id | readings
+  1 | 9217
+  Farm 3 (lives on shard2): ERROR:  could not connect to server "shard2"
+  Cross-shard cooperative report: ERROR:  could not connect to server "shard2"
+  shard2 restarted.
+  total readings after recovery: 1,033,624

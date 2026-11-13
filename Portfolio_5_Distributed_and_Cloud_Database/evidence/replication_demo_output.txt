@@ -1,0 +1,62 @@
+
+====================================================================================================
+R1  REPLICATION STATUS
+====================================================================================================
+On the PRIMARY (pg_stat_replication):
+  application_name | client_addr | state | sync_state | sent_lsn | replay_lsn | bytes_behind | replay_lag
+  replica1 | ::1 | streaming | async | 0/1D028850 | 0/1D028850 | 0 | 0:00:00.026256
+
+On the REPLICA (pg_stat_wal_receiver):
+  status | slot_name | sender_port | latest_end_lsn | in_recovery
+  streaming | replica1_slot | 5440 | 0/1D028850 | True
+
+Replication slot (keeps WAL until the replica has it, even if it disconnects):
+  slot_name | slot_type | active | restart_lsn
+  replica1_slot | physical | True | 0/1D028850
+
+====================================================================================================
+R2  REPLICATION LAG - insert on primary, poll replica until visible (30 trials, async mode)
+====================================================================================================
+  visible on replica after: median 0.65 ms, max 13.35 ms, min 0.41 ms
+  -> eventual consistency window: a read from the replica right after a save can briefly miss it.
+
+====================================================================================================
+R3  THE REPLICA IS READ-ONLY
+====================================================================================================
+  SQLSTATE 25006: ERROR:  cannot execute INSERT in a read-only transaction
+
+====================================================================================================
+R4  READ SCALING - cooperative revenue report served by the replica, not the primary
+====================================================================================================
+  state_code | kg_2026 | revenue_ngn_million
+  LA | 584559 | 1885.1
+  DE | 399376 | 1282.4
+  OY | 364734 | 1178.6
+  OG | 243391 | 787.8
+  AN | 196370 | 642.4
+  (58.5 ms on the replica; the primary did none of this work)
+
+====================================================================================================
+R5  ASYNC vs SYNC COMMIT LATENCY (300 single-row commits each)
+====================================================================================================
+  application_name | state | sync_state
+  replica1 | streaming | sync
+
+  asynchronous             : median 0.367 ms, p95 0.427 ms
+  synchronous remote_apply : median 0.759 ms, p95 1.550 ms  (2.1x slower)
+  read-your-writes check: row 631 visible on replica immediately after COMMIT -> True
+  (both servers are on one laptop; across data centres every commit would also pay the network round trip)
+
+====================================================================================================
+R6  SYNC REPLICATION WITH THE REPLICA DOWN - consistency over availability
+====================================================================================================
+  replica1 stopped.
+  INSERT on primary still waiting after 5 s -> writes are BLOCKED
+  pid | state | wait_event_type | wait_event | query
+  14296 | active | IPC | SyncRep | INSERT INTO aqua.replication_heartbeat (note) VALUES ('durin
+  Operator decision: drop to asynchronous replication to restore availability.
+  -> the blocked INSERT committed 5.0 s after it started.
+  replica1 restarted and caught up from the replication slot:
+  application_name | state | sync_state | bytes_behind
+  replica1 | streaming | async | 0
+  row written during the outage now on replica: True

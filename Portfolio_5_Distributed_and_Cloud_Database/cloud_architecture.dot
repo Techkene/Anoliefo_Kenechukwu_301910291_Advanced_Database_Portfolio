@@ -1,0 +1,48 @@
+digraph cloud {
+  graph [rankdir=LR, fontname="Helvetica", fontsize=16, labelloc=t, pad=0.3, nodesep=0.4, ranksep=0.8,
+         label="AquaSense+ — proposed cloud deployment (AWS)"];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, fillcolor="#ffffff", color="#3b5b7a"];
+  edge [fontname="Helvetica", fontsize=9, color="#3b5b7a"];
+
+  subgraph cluster_users { label="Users in Nigeria"; style="rounded,dashed"; color="#999999";
+    app [label="AquaSense+ mobile app\n(offline-first, syncs when online)", fillcolor="#fdf1e3"];
+    probe [label="IoT pond probes\n(DO, pH, temp, NH3)", fillcolor="#fdf1e3"];
+    web [label="Cooperative / extension\nofficer web dashboard", fillcolor="#fdf1e3"];
+  }
+
+  subgraph cluster_lz { label="AWS Local Zone — Lagos (edge, low latency)"; style="rounded,filled"; fillcolor="#eef4fa"; color="#3b5b7a";
+    edge_api [label="Sync & ingest API\n(EC2, auto-scaling)\nidempotent SET NX checks"];
+  }
+
+  subgraph cluster_region { label="AWS Region af-south-1 (Cape Town) — 2 Availability Zones"; style="rounded,filled"; fillcolor="#f4f8f4"; color="#2e6b3a";
+    api [label="Core API\n(ECS containers, 2 AZs)"];
+    subgraph cluster_az1 { label="AZ a"; style="rounded"; color="#7a9a80";
+      rds_p [label="RDS PostgreSQL 16\nPRIMARY\n(system of record)", fillcolor="#e6f4ea"];
+      redis_p [label="ElastiCache Redis\nprimary\nstreams · latest · cache", fillcolor="#fce4ec"];
+    }
+    subgraph cluster_az2 { label="AZ b"; style="rounded"; color="#7a9a80";
+      rds_s [label="RDS Multi-AZ standby\n(synchronous, auto-failover)", fillcolor="#e6f4ea"];
+      rds_r [label="Read replica\n(async, reports)", fillcolor="#e6f4ea"];
+      redis_r [label="ElastiCache replica\n(auto-failover)", fillcolor="#fce4ec"];
+    }
+    workers [label="Stream workers\nalert-workers · db-writers"];
+    s3 [label="S3: automated backups,\nWAL / PITR, exports", fillcolor="#fff8e1"];
+  }
+  sms [label="SMS / push alerts\n(low oxygen)", fillcolor="#fdf1e3"];
+
+  app -> edge_api [label="HTTPS"];
+  probe -> edge_api [label="MQTT/HTTPS"];
+  web -> api;
+  edge_api -> api [label="private link"];
+  edge_api -> redis_p [label="XADD readings"];
+  api -> rds_p [label="writes: feed, stock,\nharvest, sales (ACID)"];
+  api -> rds_r [label="reports (read-only)"];
+  api -> redis_p [label="latest / cache / OTP"];
+  rds_p -> rds_s [label="sync replication", style=bold];
+  rds_p -> rds_r [label="async streaming", style=dashed];
+  redis_p -> redis_r [label="async", style=dashed];
+  redis_p -> workers [label="XREADGROUP"];
+  workers -> rds_p [label="batch insert"];
+  workers -> sms;
+  rds_p -> s3 [label="snapshots + WAL", style=dotted];
+}

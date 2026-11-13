@@ -1,0 +1,38 @@
+
+====================================================================================================
+SETUP  4-node PostgreSQL lab
+====================================================================================================
+  binaries: C:\Program Files\PostgreSQL\16\bin
+  lab folder: C:\Users\user\aquasense_cluster
+  source server: localhost:5432
+  aquasense database: 267 MB; free disk: 16.1 GB
+
+====================================================================================================
+1. Replication role on your PostgreSQL (the only change made to it)
+====================================================================================================
+  role 'replicator' ready (random password stored in the lab folder, not in Git)
+
+====================================================================================================
+2. Lab primary (port 5440): pg_basebackup copy of your server
+====================================================================================================
+  copied in 13.3 s
+  started; physical replication slot 'replica1_slot' created
+
+====================================================================================================
+3. replica1 (port 5441): pg_basebackup -R -S replica1_slot from the lab primary
+====================================================================================================
+  copied in 11.3 s (-R wrote standby.signal + primary_conninfo)
+
+====================================================================================================
+4. Two empty shard servers (ports 5442, 5443)
+====================================================================================================
+  shard1 initialised and started
+  shard2 initialised and started
+
+====================================================================================================
+Cluster ready
+====================================================================================================
+  primary   port 5440: read-write
+  replica1  port 5441: standby (read-only)
+  shard1    port 5442: read-write
+  shard2    port 5443: read-write

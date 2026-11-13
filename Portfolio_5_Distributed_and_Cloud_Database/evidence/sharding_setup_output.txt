@@ -1,0 +1,8 @@
+
+====================================================================================================
+S0  SHARDING SETUP - hash(farm_id) over 2 shard servers via postgres_fdw
+====================================================================================================
+  shard1: table 'readings' + index created
+  shard2: table 'readings' + index created
+  coordinator (lab primary): foreign servers, user mappings, hash-partitioned table aqua.wqr_dist
+  routed 1,033,624 readings to the shards in 19.3 s

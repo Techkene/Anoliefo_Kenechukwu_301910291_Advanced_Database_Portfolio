@@ -1,0 +1,39 @@
+
+====================================================================================================
+F1  BEFORE: roles, timelines and the last farm record written
+====================================================================================================
+  primary   port 5440 in_recovery=False timeline=1
+  replica1  port 5441 in_recovery=True timeline=1
+  'last write before crash' written with id=633
+
+====================================================================================================
+F2  CRASH: lab primary killed with an immediate shutdown (no clean checkpoint)
+====================================================================================================
+  primary down at t=0
+  connect to primary -> connection to server at "localhost" (::1), port 5440 failed: timeout expired
+  replica still serves READS during the outage:
+  farms | last_record
+  180 | last write before crash
+
+====================================================================================================
+F3  FAILOVER: promote replica1 to primary
+====================================================================================================
+  pg_promote() returned True
+  in_recovery=False
+  new timeline=2
+  write accepted on new primary, id=661
+  RTO (crash -> promotion complete): 4707 ms;  crash -> first successful write: 6237 ms
+  (manual, scripted promotion; real RTO also includes failure detection, e.g. Patroni's ~30 s leader TTL)
+  RPO: row 633 ('last write before crash') present on the new primary -> True  => 0 rows lost
+
+====================================================================================================
+F4  SPLIT-BRAIN RISK
+====================================================================================================
+  If the old primary simply restarted as a writer, the app could write to two primaries on different timelines.
+  Production fix: fence the old node, then rejoin it as a replica with pg_rewind or a fresh pg_basebackup.
+
+====================================================================================================
+F5  RESTORE THE LAB (old primary back as writer, replica rebuilt from it)
+====================================================================================================
+  application_name | state | sync_state
+  replica1 | streaming | async
